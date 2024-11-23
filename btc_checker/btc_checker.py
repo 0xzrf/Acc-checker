@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
+from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 
 logging.basicConfig(
     level=logging.INFO,
@@ -91,23 +92,23 @@ class BitcoinTransactionMonitor:
     async def monitor(self):
         """Main monitoring loop"""
         self.running = True
-        
+
         while self.running:
             try:
-                if not self.websocket or self.websocket.closed:
+                if not hasattr(self, 'websocket') or self.websocket.closed:
                     success = await self.connect()
                     if not success:
-                        await asyncio.sleep(5) 
+                        await asyncio.sleep(5)
                         continue
 
                 keep_alive_task = asyncio.create_task(self.keep_alive())
-                
+
                 while self.running and not self.websocket.closed:
                     message = await self.websocket.recv()
                     await self.process_message(message)
-                    
-            except websockets.exceptions.ConnectionClosed:
-                logging.warning("Connection closed. Reconnecting...")
+
+            except (ConnectionClosedError, ConnectionClosedOK) as e:
+                logging.warning(f"Connection closed: {e}. Reconnecting...")
                 await asyncio.sleep(5)
             except Exception as e:
                 logging.error(f"Error in monitor loop: {str(e)}")
